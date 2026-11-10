@@ -151,7 +151,7 @@ export default function Uploader({ onSuccess }: UploaderProps) {
   };
 
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
+    <div className="w-full max-w-full min-w-0 overflow-hidden" style={{ display: 'grid', gap: 16 }}>
       {errorMessage && (
         <div style={{ padding: '10px 14px', borderRadius: 12, background: 'rgba(255,110,130,.15)', border: '1px solid rgba(255,110,130,.4)', color: '#ff9aa8', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
           <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} />
@@ -190,11 +190,11 @@ export default function Uploader({ onSuccess }: UploaderProps) {
         />
 
         {selectedFile ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-            <FileText style={{ width: 28, height: 28, color: '#8b7bff' }} />
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontWeight: 600, color: '#fff', fontSize: 14 }}>{selectedFile.name}</div>
-              <div className="nh-dim" style={{ fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }} className="min-w-0 max-w-full">
+            <FileText style={{ width: 28, height: 28, color: '#8b7bff', flexShrink: 0 }} />
+            <div style={{ textAlign: 'left' }} className="min-w-0 flex-1">
+              <div className="truncate max-w-[220px] xs:max-w-xs sm:max-w-md font-semibold text-white text-sm">{selectedFile.name}</div>
+              <div className="nh-dim truncate text-xs">
                 {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • {selectedFile.name.toLowerCase().endsWith('.pptx') || selectedFile.name.toLowerCase().endsWith('.ppt') ? 'PowerPoint Presentation' : 'PDF Document'}
               </div>
             </div>
@@ -343,10 +343,10 @@ export default function Uploader({ onSuccess }: UploaderProps) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+      <div className="flex flex-wrap items-center justify-end gap-2.5 mt-2 w-full">
         <button
           type="button"
-          className="pill pill-primary"
+          className="pill pill-primary w-full sm:w-auto flex items-center justify-center cursor-pointer"
           disabled={!selectedFile || !title.trim() || !selectedSubjectId || Boolean(uploadProgress)}
           onClick={startUpload}
         >

@@ -95,16 +95,29 @@ export const OnlineClassmatesDrawer: React.FC = () => {
     isAdminStealth 
   } = usePresence();
   const { currentUser } = useAuth();
+  const isAdmin = Boolean(currentUser?.isAdmin);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const [showAccessRequests, setShowAccessRequests] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<AccessRequest[]>([]);
 
+  // Only admins fetch or subscribe to access requests
   useEffect(() => {
+    if (!isAdmin) {
+      setPendingRequests([]);
+      return;
+    }
     fetchPendingRequests().then(setPendingRequests);
     const unsub = subscribeToPendingRequests(setPendingRequests);
     return () => unsub();
-  }, []);
+  }, [isAdmin]);
+
+  // Guard against non-admin leftover state
+  useEffect(() => {
+    if (!isAdmin && showAccessRequests) {
+      setShowAccessRequests(false);
+    }
+  }, [isAdmin, showAccessRequests]);
 
   // Live timer tick every 30 seconds to update active durations
   const [, setTick] = useState(0);
@@ -198,17 +211,24 @@ export const OnlineClassmatesDrawer: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowAccessRequests(prev => !prev)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer border ${
-                  showAccessRequests 
-                    ? 'bg-indigo-600 text-white border-indigo-500' 
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-                }`}
-              >
-                Access Requests
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setShowAccessRequests(prev => !prev)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer border ${
+                    showAccessRequests 
+                      ? 'bg-indigo-600 text-white border-indigo-500' 
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                  }`}
+                >
+                  Access Requests
+                  {pendingRequests.length > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.2 bg-amber-500 text-slate-950 font-bold rounded-full text-[10px]">
+                      {pendingRequests.length}
+                    </span>
+                  )}
+                </button>
+              )}
 
               <button
                 ref={closeButtonRef}
@@ -253,8 +273,8 @@ export const OnlineClassmatesDrawer: React.FC = () => {
           </div>
         </aside>
 
-        {showAccessRequests && (
-          <aside className="w-80 border-l border-slate-800 bg-[#111933]/95 backdrop-blur-md p-5 flex flex-col shrink-0 animate-in fade-in duration-150">
+        {isAdmin && showAccessRequests && (
+          <aside className="fixed inset-0 sm:static sm:w-80 border-l border-slate-800 bg-[#111933]/95 backdrop-blur-md p-5 flex flex-col shrink-0 animate-in fade-in duration-150 z-50">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-white tracking-tight">Access Requests</h3>
               <button

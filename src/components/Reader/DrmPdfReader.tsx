@@ -13,7 +13,9 @@ import {
   Loader2, 
   Shield, 
   AlertCircle,
-  RefreshCw 
+  RefreshCw,
+  MoreVertical,
+  Maximize2
 } from 'lucide-react';
 import { DisclaimerBanner } from '../Common/DisclaimerBanner';
 import { SecurityToast } from '../Common/SecurityToast';
@@ -77,13 +79,25 @@ export const DrmPdfReaderComponent: React.FC<DrmPdfReaderProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [scale, setScale] = useState<number>(1.15);
+  const [pageInputValue, setPageInputValue] = useState<string>('1');
+  const [scale, setScale] = useState<number>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      const avail = Math.max(280, window.innerWidth - 24);
+      return Math.max(0.45, Math.min(avail / (isPptx ? 960 : 612), 2.0));
+    }
+    return 1.15;
+  });
   const [previewScaleRatio, setPreviewScaleRatio] = useState<number>(1);
   const [rotation, setRotation] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [securityAlert, setSecurityAlert] = useState<string | null>(null);
   const [renderProgress, setRenderProgress] = useState<boolean>(false);
   const [pageAspectRatio, setPageAspectRatio] = useState<number>(isPptx ? 0.5625 : 1.294); // Standard A4 (1.294) or 16:9 Presentation (0.5625)
+  const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
+
+  useEffect(() => {
+    setPageInputValue(String(currentPage));
+  }, [currentPage]);
 
   const onPageChangeRef = useRef(onPageChange);
   useEffect(() => {
@@ -211,6 +225,11 @@ export const DrmPdfReaderComponent: React.FC<DrmPdfReaderProps> = ({
         const vp = firstPage.getViewport({ scale: 1 });
         if (vp.width > 0) {
           setPageAspectRatio(vp.height / vp.width);
+          if (typeof window !== 'undefined' && window.innerWidth < 768) {
+            const availWidth = (containerRef.current?.clientWidth || window.innerWidth) - 24;
+            const fitScale = Math.max(0.4, Math.min(availWidth / vp.width, 2.0));
+            setScale(fitScale);
+          }
         }
       } catch {
         // use default aspect ratio
@@ -451,9 +470,10 @@ export const DrmPdfReaderComponent: React.FC<DrmPdfReaderProps> = ({
 
   const handleFitWidth = () => {
     if (containerRef.current) {
-      const containerWidth = containerRef.current.clientWidth - 48;
-      const estimatedScale = containerWidth / 612;
-      applyZoom(Math.max(0.6, Math.min(estimatedScale, 2.5)));
+      const containerWidth = containerRef.current.clientWidth - 24;
+      const baseWidth = isPptx ? 960 : 612;
+      const estimatedScale = containerWidth / baseWidth;
+      applyZoom(Math.max(0.4, Math.min(estimatedScale, 2.5)));
     }
   };
 
@@ -487,65 +507,83 @@ export const DrmPdfReaderComponent: React.FC<DrmPdfReaderProps> = ({
       <DisclaimerBanner />
 
       {/* Reader Shell Header (Renders instantly before file finishes streaming) */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-900/90 border-b border-slate-800 backdrop-blur-md shrink-0">
+      <div className="relative flex items-center justify-between gap-1.5 sm:gap-3 px-2 sm:px-4 py-2 sm:py-2.5 bg-slate-900/90 border-b border-slate-800 backdrop-blur-md shrink-0">
         {/* Document Info & Back Button */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
           <button
             onClick={onClose}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium btn-spring focus:ring-2 focus:ring-indigo-500 focus:outline-none shrink-0 whitespace-nowrap"
+            className="min-w-[36px] min-h-[36px] flex items-center justify-center p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium btn-spring focus:ring-2 focus:ring-indigo-500 focus:outline-none shrink-0"
             title="Return to Notes Library"
             aria-label="Back to Notes"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Back</span>
+            <span className="hidden sm:inline ml-1.5">Back</span>
           </button>
 
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded text-[10px] sm:text-xs font-semibold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0 whitespace-nowrap">
+            <div className="flex items-center gap-1 sm:gap-2">
+              <span className="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-xs font-semibold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0 whitespace-nowrap">
                 {note.subject}
               </span>
               {isPptx ? (
-                <span className="px-2 py-0.5 rounded text-[10px] sm:text-xs font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0 whitespace-nowrap">
+                <span className="hidden xs:inline px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-xs font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0 whitespace-nowrap">
                   Presentation
                 </span>
               ) : note.isLabRecord ? (
-                <span className="px-2 py-0.5 rounded text-[10px] sm:text-xs font-semibold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0 whitespace-nowrap">
+                <span className="hidden xs:inline px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-xs font-semibold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0 whitespace-nowrap">
                   Lab Record
                 </span>
               ) : null}
             </div>
-            <h2 className="text-xs sm:text-sm md:text-base font-semibold text-slate-100 truncate max-w-xs md:max-w-md">
+            <h2 className="text-xs sm:text-sm md:text-base font-semibold text-slate-100 truncate max-w-[100px] xs:max-w-[140px] sm:max-w-xs md:max-w-md">
               {note.title}
             </h2>
           </div>
         </div>
 
         {/* Page Jump & Navigation */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           <button
             onClick={goToPrevPage}
             disabled={currentPage <= 1 || loading}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-slate-200 transition-colors btn-spring"
+            className="min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] flex items-center justify-center p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-slate-200 transition-colors btn-spring cursor-pointer"
             title="Previous Page (Left Arrow)"
             aria-label="Previous Page"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          <div className="flex items-center gap-1 text-xs font-mono px-2 py-1 bg-slate-950/60 rounded-md border border-slate-800 shrink-0">
+          <div className="flex items-center gap-1 text-xs font-mono px-1.5 sm:px-2 py-1 bg-slate-950/60 rounded-md border border-slate-800 shrink-0">
             <input
-              type="number"
-              min={1}
-              max={numPages || 1}
-              value={currentPage}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={pageInputValue}
               onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (!isNaN(val) && val >= 1 && val <= numPages) {
-                  setCurrentPage(val);
+                const val = e.target.value.replace(/\D/g, '');
+                setPageInputValue(val);
+              }}
+              onBlur={() => {
+                const num = parseInt(pageInputValue, 10);
+                if (!isNaN(num)) {
+                  const clamped = Math.max(1, Math.min(num, numPages || 1));
+                  setCurrentPage(clamped);
+                  setPageInputValue(String(clamped));
+                } else {
+                  setPageInputValue(String(currentPage));
                 }
               }}
-              className="w-10 bg-transparent text-center font-bold text-indigo-300 focus:outline-none"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const num = parseInt(pageInputValue, 10);
+                  if (!isNaN(num)) {
+                    const clamped = Math.max(1, Math.min(num, numPages || 1));
+                    setCurrentPage(clamped);
+                    setPageInputValue(String(clamped));
+                  }
+                }
+              }}
+              className="w-8 sm:w-10 bg-transparent text-center font-bold text-indigo-300 focus:outline-none"
               aria-label="Current page number"
             />
             <span className="text-slate-500">/</span>
@@ -555,7 +593,7 @@ export const DrmPdfReaderComponent: React.FC<DrmPdfReaderProps> = ({
           <button
             onClick={goToNextPage}
             disabled={currentPage >= numPages || loading}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-slate-200 transition-colors btn-spring"
+            className="min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] flex items-center justify-center p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-slate-200 transition-colors btn-spring cursor-pointer"
             title="Next Page (Right Arrow)"
             aria-label="Next Page"
           >
@@ -563,74 +601,161 @@ export const DrmPdfReaderComponent: React.FC<DrmPdfReaderProps> = ({
           </button>
         </div>
 
-        {/* Zoom & Viewport Tools */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={handleZoomOut}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors btn-spring"
-            title="Zoom Out"
-            aria-label="Zoom Out"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
+        {/* Viewport Tools: Desktop full bar vs Mobile Kebab menu */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Desktop inline zoom controls */}
+          <div className="hidden md:flex items-center gap-1.5">
+            <button
+              onClick={handleZoomOut}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors btn-spring cursor-pointer"
+              title="Zoom Out"
+              aria-label="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
 
-          <button
-            onClick={handleFitWidth}
-            className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors hidden sm:block btn-spring whitespace-nowrap"
-            title="Fit to Width"
-          >
-            Fit
-          </button>
+            <button
+              onClick={handleFitWidth}
+              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors btn-spring whitespace-nowrap cursor-pointer"
+              title="Fit to Width"
+            >
+              Fit
+            </button>
 
-          <span className="text-xs font-mono text-slate-400 w-12 text-center hidden sm:inline-block">
-            {Math.round(scale * 100)}%
-          </span>
+            <span className="text-xs font-mono text-slate-400 w-12 text-center inline-block">
+              {Math.round(scale * 100)}%
+            </span>
 
-          <button
-            onClick={handleZoomIn}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors btn-spring"
-            title="Zoom In"
-            aria-label="Zoom In"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
+            <button
+              onClick={handleZoomIn}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors btn-spring cursor-pointer"
+              title="Zoom In"
+              aria-label="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
 
-          <button
-            onClick={() => setRotation((r) => (r + 90) % 360)}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors hidden md:block btn-spring"
-            title="Rotate Page"
-            aria-label="Rotate Page"
-          >
-            <RotateCw className="w-4 h-4" />
-          </button>
+            <button
+              onClick={() => setRotation((r) => (r + 90) % 360)}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors btn-spring cursor-pointer"
+              title="Rotate Page"
+              aria-label="Rotate Page"
+            >
+              <RotateCw className="w-4 h-4" />
+            </button>
 
-          <button
-            onClick={toggleFullscreen}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors btn-spring"
-            title="Toggle Fullscreen"
-            aria-label="Toggle Fullscreen"
-          >
-            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-          </button>
+            <button
+              onClick={toggleFullscreen}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors btn-spring cursor-pointer"
+              title="Toggle Fullscreen"
+              aria-label="Toggle Fullscreen"
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </button>
 
-          <div className="h-5 w-px bg-slate-800 mx-1" />
+            <div className="h-5 w-px bg-slate-800 mx-1" />
+          </div>
 
-          {/* Ask Gemini AI Trigger Button */}
+          {/* Ask Gemini AI Trigger Button: Icon-only on mobile, full on desktop */}
           <button
             onClick={onOpenGemini}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 bouncy-btn shrink-0 whitespace-nowrap cursor-pointer"
+            className="min-h-[36px] flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 bouncy-btn shrink-0 whitespace-nowrap cursor-pointer"
             title="Ask AI Study Assistant about this document"
           >
             <Sparkles className="w-4 h-4 text-amber-300 animate-spin-slow shrink-0" />
-            <span>Ask Gemini AI</span>
+            <span className="hidden sm:inline">Ask Gemini AI</span>
+          </button>
+
+          {/* Mobile Kebab Menu Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setShowMoreMenu((prev) => !prev)}
+            className="min-w-[36px] min-h-[36px] flex items-center justify-center p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors md:hidden cursor-pointer"
+            title="More Options"
+            aria-label="More Options"
+          >
+            <MoreVertical className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Mobile More Popover Menu */}
+        {showMoreMenu && (
+          <div
+            className="absolute right-3 top-14 z-50 bg-slate-900/95 border border-slate-800 rounded-xl shadow-2xl p-2 w-48 text-xs text-slate-200 select-none animate-in fade-in zoom-in-95 backdrop-blur-md md:hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-400 border-b border-slate-800/80 mb-1 flex items-center justify-between">
+              <span>Zoom: {Math.round(scale * 100)}%</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                handleZoomIn();
+                setShowMoreMenu(false);
+              }}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-slate-800 hover:text-white transition-colors cursor-pointer text-left"
+            >
+              <ZoomIn className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span>Zoom In (+25%)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                handleZoomOut();
+                setShowMoreMenu(false);
+              }}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-slate-800 hover:text-white transition-colors cursor-pointer text-left"
+            >
+              <ZoomOut className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span>Zoom Out (-25%)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                handleFitWidth();
+                setShowMoreMenu(false);
+              }}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-slate-800 hover:text-white transition-colors cursor-pointer text-left"
+            >
+              <Maximize2 className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span>Fit to Width</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setRotation((r) => (r + 90) % 360);
+                setShowMoreMenu(false);
+              }}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-slate-800 hover:text-white transition-colors cursor-pointer text-left"
+            >
+              <RotateCw className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span>Rotate Page (+90°)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                toggleFullscreen();
+                setShowMoreMenu(false);
+              }}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-slate-800 hover:text-white transition-colors cursor-pointer text-left border-t border-slate-800/80 mt-1 pt-2"
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4 text-indigo-400 shrink-0" /> : <Maximize className="w-4 h-4 text-indigo-400 shrink-0" />}
+              <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Document Stage */}
       <div
         className="flex-1 relative overflow-auto flex items-center justify-center p-3 sm:p-6 bg-slate-950 select-none"
         onDragStart={(e) => e.preventDefault()}
+        onClick={() => setShowMoreMenu(false)}
       >
         {/* Instant Lightweight CSS Skeleton Placeholder with Pure White Slide Background */}
         {loading && (
@@ -676,16 +801,6 @@ export const DrmPdfReaderComponent: React.FC<DrmPdfReaderProps> = ({
           </div>
         )}
 
-        {/* Security watermark background badge */}
-        {!loading && !error && (
-          <div className="absolute top-4 left-4 z-10 pointer-events-none opacity-40 hover:opacity-100 transition-opacity">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900/80 border border-slate-800 rounded-full text-[10px] text-slate-400 font-mono">
-              <Shield className="w-3 h-3 text-emerald-400" />
-              <span>Direct Page Stream • DRM Active</span>
-            </div>
-          </div>
-        )}
-
         {/* The slide container itself sits centered with its original aspect ratio */}
         <div
           className={`relative transition-opacity duration-200 ${
@@ -705,6 +820,16 @@ export const DrmPdfReaderComponent: React.FC<DrmPdfReaderProps> = ({
               colorScheme: 'light',
             }}
           >
+            {/* DRM Badge positioned directly inside canvas corner */}
+            {!loading && !error && (
+              <div className="absolute top-2 left-2 z-20 pointer-events-none opacity-60 hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 px-2 py-0.5 bg-slate-900/80 border border-slate-800 rounded-md text-[9px] sm:text-[10px] text-slate-400 font-mono backdrop-blur-sm shadow-md">
+                  <Shield className="w-2.5 h-2.5 text-emerald-400" />
+                  <span>DRM Active</span>
+                </div>
+              </div>
+            )}
+
             {renderProgress && (
               <div className="absolute top-2 right-2 z-20 px-2 py-1 bg-slate-900/80 rounded text-[10px] text-indigo-300 font-mono flex items-center gap-1 shadow-md">
                 <Loader2 className="w-3 h-3 animate-spin" /> Rendering...

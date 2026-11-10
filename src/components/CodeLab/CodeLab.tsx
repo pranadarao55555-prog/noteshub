@@ -1,6 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import Editor from '@monaco-editor/react';
+import {
+  Play,
+  Save,
+  ArrowLeft,
+  FolderTree,
+  X,
+  Plus,
+  Clock,
+  SortAsc,
+  Pencil,
+  Copy,
+  Download,
+  Trash2,
+  Terminal,
+  Check,
+  Maximize2,
+  Minimize2
+} from 'lucide-react';
 
 // ==========================================
 // Judge0 CE Endpoint Configuration
@@ -377,7 +395,9 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
   const [sortBy, setSortBy] = useState<'recent' | 'name'>('recent');
 
   // Sidebar visibility & width
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => 
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+  );
   const [sidebarWidth, setSidebarWidth] = useState<number>(getInitialSidebarWidth);
 
   // Inline forms state
@@ -472,6 +492,28 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
   }, [files, activeFileId]);
 
   const activeLangKey: SupportedLang = activeFile?.language || 'python';
+
+  const [isMobile, setIsMobile] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const langStripRef = useRef<HTMLDivElement | null>(null);
+  const langPillRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEffect(() => {
+    const activeEl = langPillRefs.current[activeLangKey];
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [activeLangKey]);
 
   // Update isDirty whenever active file changes
   useEffect(() => {
@@ -714,6 +756,9 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
       setOpenFileIds((prev) => [...prev, fileId]);
     }
     setActiveFileId(fileId);
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
   };
 
   const handleStartCreateFile = (preferredLang: SupportedLang = activeLangKey) => {
@@ -1278,155 +1323,214 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
       style={{ margin: 0, padding: 0 }}
     >
       {/* 1. SOLID TOP BAR */}
-      <header className="h-12 w-full bg-[#181818] border-b border-[#2d2d2d] px-3 flex items-center justify-between shrink-0 z-30 select-none">
-        {/* Left Side: Sidebar Toggle & Language Pills */}
-        <div className="flex items-center gap-3">
-          {/* Toggle Sidebar Button */}
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((prev) => !prev)}
-            className={`p-1.5 rounded transition-colors text-slate-400 hover:text-white cursor-pointer ${
-              sidebarOpen ? 'bg-[#2a2a2a] text-white' : 'hover:bg-[#252526]'
-            }`}
-            title="Toggle File Explorer (Ctrl+B)"
-            aria-label="Toggle File Explorer"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2" />
-              <path d="M9 3v18" strokeWidth="2" />
-            </svg>
-          </button>
+      <header className="w-full bg-[#181818] border-b border-[#2d2d2d] shrink-0 z-30 select-none">
+        {/* Top Row / Desktop Main Row */}
+        <div className="h-12 px-3 flex items-center justify-between gap-2">
+          {/* Left Side: Sidebar Toggle, Desktop Language Pills & Active File Badge */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Toggle Sidebar Button */}
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((prev) => !prev)}
+              className={`min-w-[36px] min-h-[36px] p-2 rounded transition-colors text-slate-400 hover:text-white cursor-pointer flex items-center justify-center ${
+                sidebarOpen ? 'bg-[#2a2a2a] text-white' : 'hover:bg-[#252526]'
+              }`}
+              title="Toggle File Explorer (Ctrl+B)"
+              aria-label="Toggle File Explorer"
+            >
+              <FolderTree className="w-4 h-4" />
+            </button>
 
-          {/* Language Selector Pills */}
-          <div className="flex items-center gap-1 bg-[#121212] p-1 rounded-md border border-[#262626]">
-            {LANG_KEYS.map((key) => {
-              const item = LANGUAGES[key];
-              const isActive = activeLangKey === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => handleLanguagePillClick(key)}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
-                    isActive
-                      ? 'bg-indigo-600 text-white font-semibold shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#2d2d2d]'
-                  }`}
-                  title={`Switch to or create ${item.label} file`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${item.color}`} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
+            {/* Desktop Language Selector Pills */}
+            <div className="hidden md:flex items-center gap-1 bg-[#121212] p-1 rounded-md border border-[#262626]">
+              {LANG_KEYS.map((key) => {
+                const item = LANGUAGES[key];
+                const isActive = activeLangKey === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleLanguagePillClick(key)}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
+                      isActive
+                        ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-[#2d2d2d]'
+                    }`}
+                    title={`Switch to or create ${item.label} file`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${item.color}`} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Active File Badge */}
+            {activeFile ? (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#1e1e1e] border border-[#333] text-xs font-mono text-slate-300 min-w-0 max-w-[130px] xs:max-w-[170px] sm:max-w-xs truncate">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${LANGUAGES[activeFile.language]?.color || 'bg-blue-400'}`} />
+                <span className="truncate">{activeFile.name}</span>
+                {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 animate-pulse" title="Unsaved changes" />}
+              </div>
+            ) : (
+              <div className="text-xs text-slate-500 font-mono truncate">No active file</div>
+            )}
+          </div>
+
+          {/* Right Side: Save, Run, Back to Home */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Green "✓ Saved!" Badge Flash */}
+            {showSavedToast && (
+              <span className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-600 text-white text-xs font-semibold shadow-sm animate-in fade-in duration-150">
+                <Check className="w-3.5 h-3.5" />
+                <span className="hidden xs:inline">Saved!</span>
+              </span>
+            )}
+
+            {/* Save Button */}
+            <button
+              type="button"
+              onClick={handleManualSave}
+              disabled={!activeFile}
+              className={`min-w-[36px] min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded text-xs font-medium border flex items-center gap-1.5 transition-all cursor-pointer ${
+                isDirty
+                  ? 'bg-sky-700 hover:bg-sky-600 text-white border-sky-500 shadow-sm'
+                  : 'bg-[#2a2a2a] text-slate-300 hover:text-white border-[#383838]'
+              }`}
+              title="Save to Disk & Storage (Ctrl+S)"
+              aria-label="Save File"
+            >
+              <Save className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Save</span>
+            </button>
+
+            {/* Run Code Button */}
+            <button
+              type="button"
+              onClick={handleRun}
+              disabled={isRunning || !activeFile}
+              className="min-w-[36px] min-h-[36px] px-3 sm:px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed rounded text-xs font-semibold text-white shadow transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Run Code (Ctrl+Enter)"
+              aria-label="Run Code"
+            >
+              {isRunning ? (
+                <>
+                  <svg className="animate-spin h-3.5 w-3.5 text-white shrink-0" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span className="hidden sm:inline">Running...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5 fill-current shrink-0" />
+                  <span className="hidden sm:inline">Run Code</span>
+                </>
+              )}
+            </button>
+
+            {/* Back to Home Button */}
+            <button
+              type="button"
+              onClick={handleBackToHomeClick}
+              className="min-w-[36px] min-h-[36px] px-2.5 sm:px-3.5 py-1.5 bg-[#333] hover:bg-[#444] text-slate-200 hover:text-white rounded text-xs font-medium border border-[#444] transition-colors cursor-pointer flex items-center gap-1.5"
+              title="Return to NotesHub Dashboard (Esc)"
+              aria-label="Back to Home"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Back to Home</span>
+            </button>
           </div>
         </div>
 
-        {/* Center: Active File Badge */}
-        {activeFile ? (
-          <div className="flex items-center gap-2 px-3 py-1 rounded bg-[#1e1e1e] border border-[#333] text-xs font-mono text-slate-300">
-            <span className={`w-2 h-2 rounded-full ${LANGUAGES[activeFile.language]?.color || 'bg-blue-400'}`} />
-            <span>{activeFile.name}</span>
-            {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" title="Unsaved changes" />}
-          </div>
-        ) : (
-          <div className="text-xs text-slate-500 font-mono">No active file</div>
-        )}
-
-        {/* Right Side: Save, Run, Back to Home */}
-        <div className="flex items-center gap-2">
-          {/* Green "✓ Saved!" Badge Flash */}
-          {showSavedToast && (
-            <span className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 text-white text-xs font-semibold shadow-sm animate-in fade-in duration-150">
-              ✓ Saved!
-            </span>
-          )}
-
-          {/* Save Button */}
-          <button
-            type="button"
-            onClick={handleManualSave}
-            disabled={!activeFile}
-            className={`px-3 py-1.5 rounded text-xs font-medium border flex items-center gap-1.5 transition-all cursor-pointer ${
-              isDirty
-                ? 'bg-sky-700 hover:bg-sky-600 text-white border-sky-500 shadow-sm'
-                : 'bg-[#2a2a2a] text-slate-300 hover:text-white border-[#383838]'
-            }`}
-            title="Save to Disk & Storage (Ctrl+S)"
-          >
-            <span>💾</span>
-            <span>Save</span>
-          </button>
-
-          {/* Run Code Button */}
-          <button
-            type="button"
-            onClick={handleRun}
-            disabled={isRunning || !activeFile}
-            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed rounded text-xs font-semibold text-white shadow transition-all flex items-center gap-1.5 cursor-pointer"
-            title="Run Code (Ctrl+Enter)"
-          >
-            {isRunning ? (
-              <>
-                <svg className="animate-spin -ml-0.5 mr-1 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                <span>Running...</span>
-              </>
-            ) : (
-              <>
-                <span>▶</span>
-                <span>Run Code</span>
-              </>
-            )}
-          </button>
-
-          {/* Back to Home Button */}
-          <button
-            type="button"
-            onClick={handleBackToHomeClick}
-            className="px-3.5 py-1.5 bg-[#333] hover:bg-[#444] text-slate-200 hover:text-white rounded text-xs font-medium border border-[#444] transition-colors cursor-pointer"
-            title="Return to NotesHub Dashboard (Esc)"
-          >
-            ← Back to Home
-          </button>
+        {/* Row 2: Mobile Horizontally Scrollable Snap Language Strip with Auto-Scroll */}
+        <div
+          ref={langStripRef}
+          className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory px-3 py-1.5 bg-[#141414] border-t border-[#262626] shrink-0 md:hidden"
+        >
+          {LANG_KEYS.map((key) => {
+            const item = LANGUAGES[key];
+            const isActive = activeLangKey === key;
+            return (
+              <button
+                key={key}
+                ref={(el) => { langPillRefs.current[key] = el; }}
+                type="button"
+                onClick={() => handleLanguagePillClick(key)}
+                className={`min-h-[36px] px-3.5 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer snap-center shrink-0 border ${
+                  isActive
+                    ? 'bg-indigo-600 text-white font-semibold border-indigo-500 shadow-sm'
+                    : 'bg-[#222] text-slate-300 hover:text-white border-[#333]'
+                }`}
+                title={`Switch to or create ${item.label} file`}
+              >
+                <span className={`w-2 h-2 rounded-full ${item.color}`} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </div>
       </header>
 
       {/* 2. MIDDLE HORIZONTAL AREA: [Sidebar | Main Column] */}
       <div className="flex-1 min-h-0 min-w-0 flex flex-row overflow-hidden relative w-full">
+        {/* Mobile Backdrop Overlay */}
+        {sidebarOpen && isMobile && (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden animate-nh-fade"
+            onClick={() => setSidebarOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
         {/* LEFT SIDEBAR: File Explorer */}
         {sidebarOpen && (
           <aside
-            style={{ width: `${sidebarWidth}px` }}
-            className="shrink-0 flex flex-col bg-[#181818] border-r border-[#2d2d2d] overflow-hidden select-none"
+            style={{ width: isMobile ? undefined : `${sidebarWidth}px` }}
+            className={`
+              shrink-0 flex flex-col bg-[#181818] border-r border-[#2d2d2d] overflow-hidden select-none
+              ${isMobile
+                ? 'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] shadow-2xl animate-nh-drawer'
+                : 'relative'
+              }
+            `}
           >
             {/* Sidebar Header */}
-            <div className="h-9 px-3 border-b border-[#2d2d2d] flex items-center justify-between text-xs font-semibold text-slate-400 tracking-wider">
-              <span>EXPLORER</span>
+            <div className="h-10 px-3 border-b border-[#2d2d2d] flex items-center justify-between text-xs font-semibold text-slate-400 tracking-wider">
+              <div className="flex items-center gap-2">
+                <FolderTree className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span>EXPLORER</span>
+              </div>
               <div className="flex items-center gap-1">
                 {/* Sort Toggle */}
                 <button
                   type="button"
                   onClick={() => setSortBy((prev) => (prev === 'recent' ? 'name' : 'recent'))}
-                  className="p-1 hover:text-white rounded hover:bg-[#252526] transition-colors cursor-pointer"
+                  className="min-w-[36px] min-h-[36px] flex items-center justify-center p-1.5 hover:text-white rounded hover:bg-[#252526] transition-colors cursor-pointer text-slate-400"
                   title={`Sort by: ${sortBy === 'recent' ? 'Most Recent' : 'Name (A-Z)'}`}
                   aria-label="Toggle sort order"
                 >
-                  {sortBy === 'recent' ? '🕒' : '🔤'}
+                  {sortBy === 'recent' ? <Clock className="w-4 h-4" /> : <SortAsc className="w-4 h-4" />}
                 </button>
                 {/* New File (+) */}
                 <button
                   type="button"
                   onClick={() => handleStartCreateFile()}
-                  className="p-1 hover:text-white rounded hover:bg-[#252526] transition-colors cursor-pointer"
+                  className="min-w-[36px] min-h-[36px] flex items-center justify-center p-1.5 hover:text-white rounded hover:bg-[#252526] transition-colors cursor-pointer text-slate-400"
                   title="New File (Ctrl+N)"
                   aria-label="Create new file"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                  </svg>
+                  <Plus className="w-4 h-4" />
+                </button>
+                {/* Close Button on Mobile Drawer */}
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(false)}
+                  className="min-w-[36px] min-h-[36px] flex items-center justify-center p-1.5 text-slate-400 hover:text-white rounded hover:bg-[#252526] md:hidden cursor-pointer"
+                  title="Close Explorer"
+                  aria-label="Close Explorer"
+                >
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -1509,7 +1613,7 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
                     key={file.id}
                     onClick={() => handleOpenFile(file.id)}
                     onContextMenu={(e) => handleFileContextMenu(e, file)}
-                    className={`group px-3 py-1.5 flex items-center justify-between text-xs cursor-pointer border-l-2 transition-colors ${
+                    className={`group px-3 py-2 flex items-center justify-between text-xs cursor-pointer border-l-2 transition-colors ${
                       isActive
                         ? 'bg-[#2a2d2e] text-white border-l-[#007acc] font-medium'
                         : 'text-slate-300 hover:bg-[#222] border-l-transparent'
@@ -1523,19 +1627,19 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
                       )}
                     </div>
 
-                    {/* Quick Action Icons on hover */}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400">
+                    {/* Quick Action Icons: touch-friendly on mobile, hover on desktop */}
+                    <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-slate-400 shrink-0">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleStartRename(file);
                         }}
-                        className="hover:text-white p-0.5 rounded cursor-pointer"
+                        className="min-w-[32px] min-h-[32px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center hover:text-white p-1 rounded hover:bg-[#333] cursor-pointer"
                         title="Rename"
                         aria-label="Rename file"
                       >
-                        ✏️
+                        <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
@@ -1543,11 +1647,11 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
                           e.stopPropagation();
                           handleDuplicateFile(file);
                         }}
-                        className="hover:text-white p-0.5 rounded cursor-pointer"
+                        className="min-w-[32px] min-h-[32px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center hover:text-white p-1 rounded hover:bg-[#333] cursor-pointer"
                         title="Duplicate"
                         aria-label="Duplicate file"
                       >
-                        📄
+                        <Copy className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
@@ -1555,11 +1659,11 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
                           e.stopPropagation();
                           saveToLocalDisk(file.name, file.content);
                         }}
-                        className="hover:text-white p-0.5 rounded cursor-pointer"
+                        className="min-w-[32px] min-h-[32px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center hover:text-white p-1 rounded hover:bg-[#333] cursor-pointer"
                         title="Download / Save to Disk"
                         aria-label="Download file"
                       >
-                        ⬇️
+                        <Download className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
@@ -1567,11 +1671,11 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
                           e.stopPropagation();
                           setFileToDelete(file);
                         }}
-                        className="hover:text-rose-400 p-0.5 rounded cursor-pointer"
+                        className="min-w-[32px] min-h-[32px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center hover:text-rose-400 p-1 rounded hover:bg-[#333] cursor-pointer"
                         title="Delete"
                         aria-label="Delete file"
                       >
-                        🗑️
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -1581,8 +1685,8 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
           </aside>
         )}
 
-        {/* Resizable Sidebar Handle (Vertical Drag Strip) */}
-        {sidebarOpen && (
+        {/* Resizable Sidebar Handle (Vertical Drag Strip - Desktop Only) */}
+        {sidebarOpen && !isMobile && (
           <div
             onMouseDown={handleSidebarMouseDown}
             className={`w-[4px] relative shrink-0 cursor-col-resize select-none transition-colors ${
@@ -1682,9 +1786,11 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
                   }}
                   theme="vs-dark"
                   options={{
-                    fontSize: 14,
+                    fontSize: isMobile ? 13 : 14,
                     fontFamily: "'Fira Code', 'Cascadia Code', Consolas, monospace",
-                    minimap: { enabled: true },
+                    minimap: { enabled: !isMobile },
+                    lineDecorationsWidth: isMobile ? 4 : 10,
+                    lineNumbersMinChars: isMobile ? 3 : 5,
                     automaticLayout: true,
                     scrollBeyondLastLine: false,
                     lineNumbers: 'on',
@@ -1792,13 +1898,9 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
                     title={isMaximized ? 'Restore Terminal Size' : 'Maximize Terminal'}
                   >
                     {isMaximized ? (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                      </svg>
+                      <Minimize2 className="w-3.5 h-3.5" />
                     ) : (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
-                      </svg>
+                      <Maximize2 className="w-3.5 h-3.5" />
                     )}
                   </button>
 
@@ -1817,13 +1919,15 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
               {/* Terminal Body */}
               <pre
                 ref={terminalRef}
-                className={`flex-1 min-h-0 p-4 font-mono text-[13px] overflow-auto select-text leading-relaxed whitespace-pre-wrap ${
+                className={`flex-1 min-h-0 p-3 sm:p-4 font-mono text-[12px] sm:text-[13px] overflow-auto select-text leading-relaxed whitespace-pre-wrap overscroll-contain ${
                   output.isError ? 'text-rose-400' : 'text-emerald-400'
                 }`}
                 style={{
                   backgroundColor: '#141414',
                   margin: 0,
                   fontFamily: "'Fira Code', Consolas, Monaco, monospace",
+                  WebkitOverflowScrolling: 'touch',
+                  touchAction: 'pan-y',
                 }}
               >
                 {output.text || (
@@ -1839,26 +1943,26 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
 
       {/* 3. SOLID BOTTOM STATUS BAR */}
       <footer className="h-6 w-full bg-[#007acc] text-white px-3 flex items-center justify-between text-[11px] shrink-0 z-30 select-none font-sans">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold tracking-wide">NotesHub Lab</span>
-            <span className="opacity-75">•</span>
-            <span>{LANGUAGES[activeLangKey]?.label || 'CodeLab'}</span>
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="hidden sm:inline font-semibold tracking-wide">NotesHub Lab</span>
+            <span className="hidden sm:inline opacity-75">•</span>
+            <span className="truncate">{activeFile?.name || LANGUAGES[activeLangKey]?.label || 'CodeLab'}</span>
           </div>
 
           {/* Quick Terminal Toggle Button in status bar */}
           <button
             type="button"
             onClick={() => setTerminalOpen((prev) => !prev)}
-            className="flex items-center gap-1 hover:bg-black/20 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+            className="flex items-center gap-1 hover:bg-black/20 px-1.5 py-0.5 rounded transition-colors cursor-pointer shrink-0"
             title="Toggle Output Terminal (Ctrl+`)"
           >
-            <span>💻</span>
+            <Terminal className="w-3 h-3" />
             <span>Terminal {terminalOpen ? '▲' : '▼'}</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-4 font-mono">
+        <div className="flex items-center gap-2 sm:gap-4 font-mono shrink-0 text-[10px] sm:text-[11px]">
           {/* Unsaved / Saved status indication */}
           <span
             className={`font-sans cursor-pointer hover:underline ${
@@ -1871,8 +1975,8 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
           >
             {isDirty ? '● Unsaved' : saveStatus}
           </span>
-          <span>UTF-8</span>
-          <span>
+          <span className="hidden md:inline">UTF-8</span>
+          <span className="hidden sm:inline">
             Ln {cursor.ln}, Col {cursor.col}
           </span>
         </div>
@@ -1935,17 +2039,17 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
           <button
             type="button"
             onClick={() => handleStartRename(contextMenu.file)}
-            className="w-full text-left px-3 py-1.5 hover:bg-[#007acc] hover:text-white flex items-center gap-2 cursor-pointer"
+            className="w-full text-left px-3 py-2 hover:bg-[#007acc] hover:text-white flex items-center gap-2.5 cursor-pointer"
           >
-            <span>✏️</span>
+            <Pencil className="w-3.5 h-3.5" />
             <span>Rename</span>
           </button>
           <button
             type="button"
             onClick={() => handleDuplicateFile(contextMenu.file)}
-            className="w-full text-left px-3 py-1.5 hover:bg-[#007acc] hover:text-white flex items-center gap-2 cursor-pointer"
+            className="w-full text-left px-3 py-2 hover:bg-[#007acc] hover:text-white flex items-center gap-2.5 cursor-pointer"
           >
-            <span>📄</span>
+            <Copy className="w-3.5 h-3.5" />
             <span>Duplicate</span>
           </button>
           <button
@@ -1954,9 +2058,9 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
               saveToLocalDisk(contextMenu.file.name, contextMenu.file.content);
               setContextMenu(null);
             }}
-            className="w-full text-left px-3 py-1.5 hover:bg-[#007acc] hover:text-white flex items-center gap-2 cursor-pointer"
+            className="w-full text-left px-3 py-2 hover:bg-[#007acc] hover:text-white flex items-center gap-2.5 cursor-pointer"
           >
-            <span>⬇️</span>
+            <Download className="w-3.5 h-3.5" />
             <span>Download to Disk</span>
           </button>
           <div className="border-t border-[#333] my-1" />
@@ -1966,9 +2070,9 @@ export default function CodeLab({ onClose, userId = null }: CodeLabProps) {
               setFileToDelete(contextMenu.file);
               setContextMenu(null);
             }}
-            className="w-full text-left px-3 py-1.5 hover:bg-rose-600 hover:text-white text-rose-300 flex items-center gap-2 cursor-pointer"
+            className="w-full text-left px-3 py-2 hover:bg-rose-600 hover:text-white text-rose-300 flex items-center gap-2.5 cursor-pointer"
           >
-            <span>🗑️</span>
+            <Trash2 className="w-3.5 h-3.5" />
             <span>Delete</span>
           </button>
         </div>

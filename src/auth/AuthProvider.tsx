@@ -37,6 +37,7 @@ interface AuthContextType {
   } | null;
   adminEmail: string;
   signOut: () => Promise<void>;
+  claimAdminKey: (secretKey: string) => Promise<{ success: boolean; message?: string }>;
 }
 
 const AuthCtx = createContext<AuthContextType | null>(null);
@@ -46,24 +47,62 @@ export const useAuth = () => {
   return ctx;
 };
 
+export const getAdminEmails = (): string[] => {
+  const raw = import.meta.env.VITE_ADMIN_EMAIL || '';
+  const unquoted = raw.replace(/^["']|["']$/g, '');
+  const parsed = unquoted
+    .split(',')
+    .map((e: string) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  const fallbackAdmins = [
+    'pranadarao55555@gmail.com',
+    'nikhiltholamatti@gmail.com',
+    'krishnaadiga26@gmail.com',
+  ];
+
+  return Array.from(new Set([...parsed, ...fallbackAdmins]));
+};
+
 export const isEmailAdmin = (email?: string | null): boolean => {
   if (!email) return false;
   const clean = email.toLowerCase().trim();
-  const configured = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
-  return Boolean(
-    (configured && clean === configured) ||
-    clean === 'pranadarao55555@gmail.com' ||
-    (configured && configured.includes('pranadarao55555') && clean.includes('pranadarao55555'))
-  );
+  const admins = getAdminEmails();
+  return admins.includes(clean);
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || 'pranadarao55555@gmail.com').toLowerCase().trim();
+  const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || 'pranadarao55555@gmail.com')
+    .replace(/^["']|["']$/g, '')
+    .split(',')[0]
+    .toLowerCase()
+    .trim();
 
   const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // 4B: Detect and handle Supabase redirect errors in URL (e.g. ?error=... or #error=...)
+  useEffect(() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const errorParam =
+        searchParams.get('error_description') ||
+        searchParams.get('error') ||
+        hashParams.get('error_description') ||
+        hashParams.get('error');
+
+      if (errorParam) {
+        const decoded = decodeURIComponent(errorParam.replace(/\+/g, ' '));
+        setError(decoded);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // 1. Initial auth state and user profile sync
   useEffect(() => {
@@ -80,24 +119,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(authUser);
       const cleanEmail = authUser.email.toLowerCase().trim();
 
-      // Instant hard check:
-      // If isAdmin is true:
-      // - Immediately grant role: "admin" and status: "approved"
-      // - Completely BYPASS all database/whitelist lookups
-      // - NEVER redirect this email to the /access or "Request sent" waiting screen
-      // - Direct this user straight into the Admin Dashboard
-      const isAdmin = isEmailAdmin(cleanEmail);
+      // Check if user is in authorized admin emails, has claimed admin key, or has admin metadata
+      const isClaimed = Boolean(
+        authUser.id && localStorage.getItem(`nh_admin_claimed_${authUser.id}`) === 'true'
+      );
+      const isMetaAdmin = authUser.user_metadata?.role === 'admin' || authUser.app_metadata?.role === 'admin';
+      const isAdmin = isEmailAdmin(cleanEmail) || isClaimed || isMetaAdmin;
 
       if (isAdmin) {
+        const defaultName = cleanEmail === 'pranadarao55555@gmail.com'
+          ? 'Pranada Rao'
+          : cleanEmail === 'nikhiltholamatti@gmail.com'
+          ? 'Nikhil Tholamatti'
+          : cleanEmail === 'krishnaadiga26@gmail.com'
+          ? 'Krishna Adiga'
+          : authUser.user_metadata?.name || authUser.user_metadata?.display_name || cleanEmail.split('@')[0] || 'Admin';
+
         const adminProfile: UserDoc = {
           id: authUser.id,
-          name: authUser.user_metadata?.name || authUser.user_metadata?.display_name || 'Pranada Rao',
+          name: authUser.user_metadata?.name || authUser.user_metadata?.display_name || defaultName,
           email: cleanEmail,
           role: 'admin',
           status: 'approved',
           requestedAt: Date.now(),
           reviewedAt: Date.now(),
-          reviewedBy: 'system',
+          reviewedBy: isClaimed ? 'secret-key' : 'system',
         };
         setProfile(adminProfile);
         try {
@@ -265,14 +311,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Derived Access State
   const access: AccessStatus = useMemo(() => {
     if (!user && !loading) return 'signed-out';
-    // Instant hard check: immediately grant 'admin'
-    if (user && isEmailAdmin(user.email)) return 'admin';
+    const isClaimed = Boolean(user?.id && localStorage.getItem(`nh_admin_claimed_${user.id}`) === 'true');
+    const isMeta = user?.user_metadata?.role === 'admin' || user?.app_metadata?.role === 'admin';
+    if (user && (isEmailAdmin(user.email) || isClaimed || isMeta)) return 'admin';
     if (loading) return 'loading';
     if (!user) return 'signed-out';
     if (!profile) return 'loading';
     if (profile.role === 'admin' && profile.status === 'approved') return 'admin';
     return profile.status; // 'approved' | 'pending' | 'rejected'
   }, [loading, user, profile]);
+
+  const claimAdminKey = useCallback(async (secretKey: string): Promise<{ success: boolean; message?: string }> => {
+    const configuredSecret = (import.meta.env.VITE_ADMIN_SECRET_KEY || 'NotesHubPRRAO7002').trim();
+    if (!secretKey || secretKey.trim() !== configuredSecret) {
+      return { success: false, message: 'Invalid Admin Secret Key.' };
+    }
+
+    if (!user) {
+      return { success: false, message: 'You must be signed in to claim admin privileges.' };
+    }
+
+    const cleanEmail = (user.email || '').toLowerCase().trim();
+    const defaultName = cleanEmail === 'pranadarao55555@gmail.com'
+      ? 'Pranada Rao'
+      : cleanEmail === 'nikhiltholamatti@gmail.com'
+      ? 'Nikhil Tholamatti'
+      : cleanEmail === 'krishnaadiga26@gmail.com'
+      ? 'Krishna Adiga'
+      : user.user_metadata?.name || user.user_metadata?.display_name || cleanEmail.split('@')[0] || 'Admin';
+
+    const updatedProfile: UserDoc = {
+      id: user.id,
+      name: user.user_metadata?.name || user.user_metadata?.display_name || defaultName,
+      email: cleanEmail,
+      role: 'admin',
+      status: 'approved',
+      requestedAt: Date.now(),
+      reviewedAt: Date.now(),
+      reviewedBy: 'secret-key',
+    };
+
+    setProfile(updatedProfile);
+
+    try {
+      localStorage.setItem(`nh_admin_claimed_${user.id}`, 'true');
+      localStorage.setItem(`nh_profile_${user.id}`, JSON.stringify(updatedProfile));
+    } catch {}
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('users')
+          .upsert([
+            {
+              id: user.id,
+              name: updatedProfile.name,
+              email: cleanEmail,
+              role: 'admin',
+              status: 'approved',
+              reviewed_at: new Date().toISOString(),
+              reviewed_by: 'secret-key',
+            },
+          ]);
+      } catch (err) {
+        console.warn('Could not update role in Supabase users table:', err);
+      }
+    }
+
+    return { success: true };
+  }, [user]);
 
   const friendly = (e: any): string => {
     const msg = e?.message || String(e || '');
@@ -351,11 +458,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const currentUser = useMemo(() => {
     if (!user) return null;
     const cleanEmail = (user.email || profile?.email || '').toLowerCase().trim();
-    const isAdmin = isEmailAdmin(cleanEmail) || access === 'admin' || profile?.role === 'admin';
+    const isClaimed = Boolean(user.id && localStorage.getItem(`nh_admin_claimed_${user.id}`) === 'true');
+    const isMeta = user.user_metadata?.role === 'admin' || user.app_metadata?.role === 'admin';
+    const isAdmin = isEmailAdmin(cleanEmail) || access === 'admin' || profile?.role === 'admin' || isClaimed || isMeta;
+    const defaultDisplayName = cleanEmail === 'pranadarao55555@gmail.com'
+      ? 'Pranada Rao'
+      : cleanEmail === 'nikhiltholamatti@gmail.com'
+      ? 'Nikhil Tholamatti'
+      : cleanEmail === 'krishnaadiga26@gmail.com'
+      ? 'Krishna Adiga'
+      : (isAdmin ? 'Admin' : 'Student');
+
     return {
       uid: user.id,
       email: cleanEmail,
-      displayName: profile?.name || user.user_metadata?.name || (isAdmin ? 'Pranada Rao' : 'Student'),
+      displayName: profile?.name || user.user_metadata?.name || defaultDisplayName,
       isAdmin,
       role: (isAdmin ? 'admin' : (profile?.role || 'student')) as 'admin' | 'student',
       photoURL: user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(profile?.name || cleanEmail)}`,
@@ -375,6 +492,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         currentUser,
         adminEmail,
         signOut: logout,
+        claimAdminKey,
         isSupabaseReady: isSupabaseConfigured,
         signInWithPassword: async (email: string, pass: string) => {
           try {
